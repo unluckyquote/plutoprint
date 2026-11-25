@@ -1,0 +1,15 @@
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+*.urf
+!test/fixtures/hello0.urf
+*.bin
+*.log
+*.pdf
+hello.txt
+test/host/test_*
+!test/host/test_*.c
+
+.DS_Store
+web/vendor/

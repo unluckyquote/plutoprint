@@ -1,0 +1,61 @@
+name: Build and publish installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Allow git inside the container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Work out the version
+        run: echo "PLUTO_VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
+      - name: Install a compiler for the unit tests and curl for the web libraries
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
+      - name: Host tests
+        run: make -C test/host test
+      - name: Build firmware
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
+          idf.py merge-bin -o pluto-print.bin
+      - name: Assemble site
+        run: |
+          mkdir -p site/firmware site/hardware
+          cp web/index.html web/privacy.html web/favicon.svg site/
+          sh tools/vendor-web-libs.sh site/vendor
+          cp -r web/img site/img
+          cp build/pluto-print.bin site/firmware/
+          cp build/print_server.bin site/firmware/pluto-print-update.bin
+          cp hardware/case_print.stl hardware/case_box.stl hardware/case_lid.stl hardware/case.scad site/hardware/
+          sed "s/\"version\": \"dev\"/\"version\": \"$PLUTO_VERSION\"/" web/manifest.json > site/manifest.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

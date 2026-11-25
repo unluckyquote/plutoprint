@@ -1,0 +1,27 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in the installer's dialog and as "fw" at http://printer.local/api/status.
+      placeholder: v1.0.0
+  - type: input
+    id: printer
+    attributes:
+      label: Printer model
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Paste the ESP32's log from http://printer.local/api/log. Remove your WiFi name and anything private first.
+      render: text

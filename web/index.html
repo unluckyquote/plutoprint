@@ -1,0 +1,539 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 UnluckyQuote -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install Pluto Print</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <meta name="description" content="WiFi printing for Samsung printers, from an ESP32-S3.">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f5f7; --surface: #fff; --text: #1a1d21; --muted: #6b727a; --line: #dfe2e6; --faint: #eceef1;
+      --accent: #245fc1; --accent-contrast: #fff; --done: #16834a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --bg: #151719; --surface: #202326; --text: #f1f3f5; --muted: #a3aab2; --line: #3b4046; --faint: #2a2e32; --accent: #79a9ff; --accent-contrast: #101a2c; --done: #5dcc91; }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-feature-settings: "tnum"; }
+
+    .stage { position: relative; width: min(100% - 220px, 920px); }
+    .sheet { display: grid; grid-template-columns: 232px 1fr; height: 580px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+
+    .rail { padding: 36px 28px; background: var(--bg); border-right: 1px solid var(--line); }
+    .brand { font-size: 17px; font-weight: 650; letter-spacing: -.02em; margin-bottom: 40px; }
+    .steps { list-style: none; margin: 0; padding: 0; position: relative; }
+    .steps li.group { height: auto; margin: 22px 0 6px; font-size: 12px; color: var(--muted); }
+    .steps li.group:first-child { margin-top: 0; }
+    .steps li { position: relative; display: flex; align-items: center; gap: 14px; height: 40px; color: var(--muted); font-size: 14.5px; }
+    .steps .dot { position: relative; z-index: 1; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--line); display: grid; place-items: center; }
+    .steps .dot svg { width: 9px; height: 9px; display: none; stroke: var(--accent-contrast); }
+    .steps li.is-current { color: var(--text); font-weight: 650; }
+    .steps li.is-current .dot { border-color: var(--text); background: var(--text); }
+    .steps li.is-done .dot { border-color: var(--done); background: var(--done); }
+    .steps li.is-done .dot svg { display: block; }
+
+    .main { display: flex; flex-direction: column; padding: 40px 48px 28px; min-width: 0; }
+    .page { display: none; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 40px; align-items: center; }
+    .page.is-active { display: grid; }
+    .page.single { grid-template-columns: 1fr; align-items: start; }
+    .page.welcome { align-items: center; }
+    .page.welcome .lead { max-width: 40ch; font-size: 17px; }
+    h1, h2 { margin: 0 0 12px; font-weight: 650; letter-spacing: -.03em; line-height: 1.12; }
+    h1 { font-size: 40px; line-height: 1.12; max-width: 14ch; }
+    h2 { font-size: 29px; }
+    .lead { margin: 0; color: var(--muted); font-size: 16.5px; max-width: 34ch; }
+    .page.single .lead { max-width: 52ch; }
+    .muted { color: var(--muted); }
+    a { color: var(--accent); }
+    code { font: .9em ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .figure svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .ink { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .paper { fill: var(--surface); }
+    .light { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-linecap: round; }
+    .solid { fill: var(--text); stroke: none; }
+    .hot { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .hotfill { fill: var(--accent); stroke: none; }
+    .leader { fill: none; stroke: var(--muted); stroke-width: 1; }
+    .tag { fill: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .flow { stroke-dasharray: 5 5; animation: flow 1.2s linear infinite; }
+    @keyframes flow { to { stroke-dashoffset: -10; } }
+
+    .photo { position: relative; justify-self: center; width: min(100%, 360px); aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: #000; }
+    .todo { list-style: none; counter-reset: n; margin: 22px 0 0; padding: 0; }
+    .todo li { counter-increment: n; position: relative; padding: 0 0 18px 40px; font-size: 16px; line-height: 1.5; }
+    .todo li::before { content: counter(n); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 650; color: var(--muted); line-height: 23px; text-align: center; }
+    .todo strong { display: block; font-weight: 500; }
+    .todo span { color: var(--muted); }
+
+    .needs { margin: 22px 0 0; border-top: 1px solid var(--line); }
+    .need { display: grid; grid-template-columns: 34px 1fr auto; gap: 16px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .need svg { width: 30px; height: 30px; }
+    .need .name { font-weight: 650; font-size: 15px; line-height: 1.3; }
+    .need .note { color: var(--muted); font-size: 13.5px; line-height: 1.35; }
+    .need .links { font-size: 13.5px; white-space: nowrap; text-align: right; }
+    .need .links a + a { margin-left: 14px; }
+
+    .footer { display: flex; align-items: center; gap: 12px; padding-top: 20px; border-top: 1px solid var(--faint); }
+    .footer .spacer { flex: 1; }
+    .button { border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--text); padding: 10px 22px; min-width: 96px; font: inherit; font-weight: 650; cursor: pointer; text-align: center; }
+    .button:hover { background: var(--faint); }
+    .button.primary { background: var(--text); border-color: var(--text); color: var(--surface); }
+    .button.primary:hover { background: var(--text); opacity: .88; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .pointer { position: absolute; right: -72px; width: 58px; height: 24px; display: flex; gap: 2px; color: var(--accent); pointer-events: none; transition: top .25s ease, opacity .15s; }
+    .pointer svg { width: 19px; height: 24px; opacity: .18; animation: chevron 1.2s ease-in-out infinite; }
+    .pointer svg:nth-child(1) { animation-delay: .4s; }
+    .pointer svg:nth-child(2) { animation-delay: .2s; }
+    .pointer.is-hidden { opacity: 0; }
+    @keyframes chevron { 0%, 100% { opacity: .18; } 30% { opacity: 1; } }
+    @media (max-width: 1100px) { .stage { width: min(100% - 160px, 920px); } .pointer { right: -62px; } }
+    @media (prefers-reduced-motion: reduce) { .ring::after, .guide .chevs svg { animation: none; } .pointer svg { animation: none; opacity: 1; } .flow { animation: none; } .pointer { transition: none; } }
+  
+    .legal { position: fixed; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 12px; color: var(--muted); }
+    .legal a { color: inherit; }
+    .step-text { font-size: 16px; font-weight: 400; line-height: 1.55; max-width: 40ch; margin: 6px 0 0; }
+    .zoom { position: absolute; width: var(--zw, 217.4%); left: var(--zl, -60.9%); top: var(--zt, -173.9%); aspect-ratio: 1; }
+    .zoom img { display: block; width: 100%; height: 100%; }
+    .ring { position: absolute; left: calc(var(--rx) - var(--rs) / 2); top: calc(var(--ry) - var(--rs) / 2); width: var(--rs); height: var(--rs); border: 2.5px solid #5b9dff; border-radius: 50%; }
+    .ring::after { content: ""; position: absolute; inset: -2.5px; border: 2.5px solid #5b9dff; border-radius: 50%; animation: pulse 1.8s ease-out infinite; }
+    @keyframes pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
+    .shot { display: block; width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 8px; justify-self: center; }
+    .render { display: block; width: 100%; height: auto; }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: center; margin-top: 8px; }
+    .specs { margin: 18px 0 0; border-top: 1px solid var(--line); max-width: 340px; }
+    .specs div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+    .specs dt { color: var(--muted); }
+    .specs dd { margin: 0; text-align: right; }
+    .downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 20px; max-width: 300px; }
+    .viewer-wrap { min-width: 0; }
+    .viewer { width: 100%; aspect-ratio: 4 / 3; cursor: grab; touch-action: none; }
+    .viewer:active { cursor: grabbing; }
+    .viewer canvas { display: block; width: 100%; height: 100%; }
+    .viewer-wrap .fine { text-align: center; margin-top: 8px; }
+    .toggle { display: flex; width: max-content; margin: 6px auto 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+    .toggle button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 14px; cursor: pointer; }
+    .toggle button.is-on { background: var(--faint); color: var(--text); font-weight: 650; }
+    .downloads .button { display: block; text-decoration: none; min-width: 0; padding: 10px 6px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gallery img { display: block; width: auto; max-width: 100%; max-height: 210px; height: auto; border-radius: 8px; justify-self: center; }
+    .fine { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+    .guide { position: fixed; z-index: 2147483000; display: none; align-items: center; gap: 10px; pointer-events: none; }
+    .guide.is-on { display: flex; }
+    .guide.flip { flex-direction: row-reverse; }
+    .guide .chevs { display: flex; gap: 1px; color: #7ab0ff; }
+    .guide.flip .chevs { transform: scaleX(-1); }
+    .guide .chevs svg { width: 19px; height: 24px; opacity: .25; animation: chevron 1.2s ease-in-out infinite; filter: drop-shadow(0 0 3px rgba(0,0,0,.45)); }
+    .guide .chevs svg:nth-child(1) { animation-delay: .4s; }
+    .guide .chevs svg:nth-child(2) { animation-delay: .2s; }
+    .guide .sub { display: block; margin-top: 4px; font-weight: 400; font-size: 13px; color: #626569; }
+    .guide .bubble { background: #fff; color: #1a1d21; border-radius: 8px; padding: 10px 14px; font-weight: 600; font-size: 15px; line-height: 1.35; width: max-content; max-width: 230px; box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="sheet">
+      <aside class="rail">
+        <ol class="steps" id="steps"></ol>
+      </aside>
+
+      <main class="main">
+        <section class="page single welcome" data-title="Welcome" data-group="Prepare">
+          <div>
+            <h1>Let's get your printer on WiFi.</h1>
+          </div>
+        </section>
+
+        <section class="page single" data-title="Parts" data-group="Prepare">
+          <div>
+            <h2>Gather your parts</h2>
+            <div class="needs">
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="1.5"/><path d="M12 9V5M15 9V5M18 9V5M12 25v-4M15 25v-4M18 25v-4M9 12H5M9 15H5M9 18H5M25 12h-4M25 15h-4M25 18h-4"/></svg>
+                <div><div class="name">ESP32-S3</div><div class="note">I used <a href="https://www.amazon.nl/dp/B0G4W9KRB1" target="_blank" rel="noopener">this one</a></div></div>
+                <div class="links"></div>
+              </div>
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="7" height="6" rx="1.5"/><rect x="20" y="10" width="7" height="10" rx="1.5"/><path d="M10 15h10"/></svg>
+                <div><div class="name">USB-C to USB-B cable</div><div class="note">I used <a href="https://www.amazon.nl/dp/B0F7XSMSBK" target="_blank" rel="noopener">this one</a></div></div>
+                <div class="links"></div>
+              </div>
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4v6M19 4v6M8 10h14v4a7 7 0 0 1-14 0zM15 21v5"/></svg>
+                <div><div class="name">USB charger</div><div class="note">With a USB-C cable, to power the ESP32</div></div>
+                <div class="links"></div>
+              </div>
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="24" height="11" rx="2"/><path d="M8 11V5h14v6M8 18h14v7H8z"/></svg>
+                <div><div class="name">Samsung printer</div><div class="note">Tested on the M2020W</div></div>
+                <div class="links"></div>
+              </div>
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="7" width="18" height="12" rx="1.5"/><path d="M3 23h24"/></svg>
+                <div><div class="name">Computer</div><div class="note">Running Chrome or Edge</div></div>
+                <div class="links"></div>
+              </div>
+              <div class="need">
+                <svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l10 5v12l-10 5-10-5V9z"/><path d="M5 9l10 5 10-5M15 14v12"/></svg>
+                <div><div class="name">Case <span class="muted" style="font-weight:400">optional</span></div><div class="note">3D printed, fits the cable above</div></div>
+                <div class="links"></div>
+              </div>
+            </div>
+            <p class="fine">The links go to Amazon NL and aren't affiliate links.</p>
+          </div>
+        </section>
+
+        <section class="page" data-title="Case" data-group="Prepare">
+          <div>
+            <h2>The case</h2>
+            <p class="step-text">An optional case that holds the ESP32 on the back of the printer.</p>
+            <dl class="specs">
+              <div><dt>Print time</dt><dd>~25 minutes in PLA</dd></div>
+              <div><dt>Supports</dt><dd>For the USB-C holes</dd></div>
+            </dl>
+            <div class="downloads row">
+              <a class="button" href="hardware/case_print.stl" download>STL file</a>
+              <a class="button" href="hardware/case.scad" download>SCAD file</a>
+            </div>
+          </div>
+          <div class="viewer-wrap">
+            <div class="viewer" id="case-viewer" aria-label="3D view of the case, drag to turn it"></div>
+            <div class="toggle" role="group" aria-label="Case view">
+              <button type="button" class="is-on" data-view="closed">Closed</button>
+              <button type="button" data-view="open">Exploded</button>
+            </div>
+            <p class="fine">Drag to turn it around.</p>
+          </div>
+        </section>
+
+        <section class="page" data-title="ESP32" data-group="Prepare">
+          <div>
+            <h2>Prepare the ESP32</h2>
+            <p class="step-text">Bridge the USB‑OTG pads with solder to enable USB‑OTG</p>
+          </div>
+          <div class="photo">
+            <div class="zoom" style="--zw:217.4%;--zl:-60.9%;--zt:-173.9%">
+              <img src="img/ESP32-S3-underside.webp" alt="Underside of the ESP32 with the USB-OTG pads circled">
+              <div class="ring" style="--rx:56.8%;--ry:76.4%;--rs:8%"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Computer" data-group="Install">
+          <div>
+            <h2>Connect the ESP32</h2>
+            <p class="step-text">Plug the COM port into this computer</p>
+          </div>
+          <div class="photo">
+            <div class="zoom" style="--zw:217.4%;--zl:-60.9%;--zt:-189.9%">
+              <img src="img/ESP32-S3-underside.webp" alt="Underside of the ESP32 with the COM port circled">
+              <div class="ring" style="--rx:41%;--ry:91%;--rs:9%"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page single" data-title="Install" data-group="Install">
+          <div>
+            <h2>Install</h2>
+            <p class="step-text">Click Install, then follow the arrows</p>
+          </div>
+        </section>
+
+        <section class="page" data-title="Printer" data-group="Finish">
+          <div>
+            <h2>Connect the printer</h2>
+            <ol class="todo">
+              <li>Unplug the ESP32 from this computer</li>
+              <li>Snap it into the case <span class="muted">(optional)</span></li>
+              <li>Plug its USB port into the printer</li>
+              <li>Power its COM port from the charger</li>
+            </ol>
+          </div>
+          <img class="shot" src="img/printer-rear.webp" alt="The ESP32 in its case, connected to the back of the printer">
+        </section>
+
+                <section class="page single" data-title="Done" data-group="Finish">
+          <div>
+            <h2>Pluto Print is ready</h2>
+            <ol class="todo">
+              <li><strong>iPhone and iPad</strong><span>You'll find it in the print options of any app.</span></li>
+              <li><strong>Mac</strong><span>Add it in Printers &amp; Scanners, and you're set.</span></li>
+              <li><strong>Settings</strong><span><a href="http://printer.local" target="_blank" rel="noopener">printer.local</a></span></li>
+            </ol>
+          </div>
+        </section>
+
+        <div class="footer">
+          <button class="button" id="back" type="button">Back</button>
+          <span class="spacer"></span>
+          <button class="button primary" id="install" type="button" hidden>Install</button>
+          <span class="muted" id="unsupported" hidden>Use Chrome or Edge on a computer to install.</span>
+          <button class="button primary" id="next" type="button">Next</button>
+        </div>
+      </main>
+    </div>
+    <div class="pointer" id="pointer" aria-hidden="true"><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg></div>
+  </div>
+  <footer class="legal">Pluto Print by <a href="https://github.com/unluckyquote" target="_blank" rel="noopener">UnluckyQuote</a> &middot; <a href="https://github.com/unluckyquote/plutoprint/blob/main/LICENSE" target="_blank" rel="noopener">GPL-3.0-or-later</a> &middot; <a href="https://github.com/unluckyquote/plutoprint" target="_blank" rel="noopener">Source on GitHub</a> &middot; <a href="privacy.html">Privacy</a></footer>
+  <div class="guide" id="guide" aria-live="polite"><div class="chevs" id="guide-chevs"><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg><svg viewBox="0 0 19 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3L5 12l9 9"/></svg></div><div class="bubble"><span id="guide-text"></span><span class="sub" id="guide-sub"></span></div></div>
+
+  <script type="importmap">{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }</script>
+  <script type="module">
+    import * as THREE from "three";
+    import { STLLoader } from "three/addons/loaders/STLLoader.js";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    var holder = document.getElementById("case-viewer");
+    var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    holder.appendChild(renderer.domElement);
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(30, 4 / 3, 1, 1000);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f98, 1.1));
+    var key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(-60, 90, 120);
+    scene.add(key);
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = false;
+    controls.enableZoom = false;
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 1.2;
+    controls.addEventListener("start", function () { controls.autoRotate = false; });
+    var model = new THREE.Group();
+    model.rotation.x = -Math.PI / 2;
+    scene.add(model);
+    var lid = null;
+    var lidTarget = 0;
+    var material = new THREE.MeshStandardMaterial({ color: 0xdcdfe3, roughness: 0.65, metalness: 0.05 });
+    var loader = new STLLoader();
+    loader.load("hardware/case_box.stl", function (geometry) {
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      var middle = new THREE.Vector3();
+      geometry.boundingBox.getCenter(middle);
+      model.position.set(-middle.x, middle.z - 6, middle.y);
+      model.add(new THREE.Mesh(geometry, material));
+      camera.position.set(-70, 90, 110);
+      controls.update();
+    });
+    loader.load("hardware/case_lid.stl", function (geometry) {
+      geometry.computeVertexNormals();
+      lid = new THREE.Mesh(geometry, material);
+      model.add(lid);
+    });
+    window.setCaseView = function (open) { lidTarget = open ? 34 : 0; };
+    function resize() {
+      var w = holder.clientWidth, h = holder.clientHeight;
+      if (w && h && (renderer.domElement.width !== w * renderer.getPixelRatio())) {
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+    }
+    new ResizeObserver(resize).observe(holder);
+    (function frame() { requestAnimationFrame(frame); if (holder.offsetParent === null) return; resize(); if (lid) lid.position.z += (lidTarget - lid.position.z) * 0.12; controls.update(); renderer.render(scene, camera); })();
+  </script>
+  <script>
+
+    var pages = Array.prototype.slice.call(document.querySelectorAll(".page"));
+    var rail = document.getElementById("steps");
+    var stage = document.getElementById("stage");
+    var pointer = document.getElementById("pointer");
+    var installer = document.getElementById("install");
+    var unsupported = document.getElementById("unsupported");
+    var canInstall = "serial" in navigator && window.isSecureContext;
+    var nextButton = document.getElementById("next");
+    var guide = document.getElementById("guide");
+    var guideText = document.getElementById("guide-text");
+    var guideSub = document.getElementById("guide-sub");
+    var current = 0;
+    var installStarted = false;
+    var chooserUntil = 0;
+    var sawDialog = false;
+    var installedFlag = false;
+    var provisionedFlag = false;
+    var tick = '<svg viewBox="0 0 10 10" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.5l2 2 4-4.5"/></svg>';
+
+    var stepItems = [];
+    var lastGroup = "";
+    pages.forEach(function (page) {
+      var group = page.getAttribute("data-group");
+      if (group !== lastGroup) {
+        var heading = document.createElement("li");
+        heading.className = "group";
+        heading.textContent = group;
+        rail.appendChild(heading);
+        lastGroup = group;
+      }
+      var li = document.createElement("li");
+      li.innerHTML = '<span class="dot">' + tick + '</span><span></span>';
+      li.lastChild.textContent = page.getAttribute("data-title");
+      rail.appendChild(li);
+      stepItems.push(li);
+    });
+
+    function titleOf(index) { return pages[index].getAttribute("data-title"); }
+    function indexOfTitle(title) { return pages.findIndex(function (p) { return p.getAttribute("data-title") === title; }); }
+    function guideActive() { return Date.now() < chooserUntil || document.querySelector("ewt-install-dialog") !== null; }
+
+    function aim() {
+      var onInstall = titleOf(current) === "Install" && !installStarted;
+      var target = onInstall ? installer : nextButton;
+      if (!target || target.offsetParent === null || guideActive()) { pointer.classList.add("is-hidden"); return; }
+      var box = target.getBoundingClientRect(), outer = stage.getBoundingClientRect();
+      pointer.style.top = (box.top - outer.top + box.height / 2 - pointer.offsetHeight / 2) + "px";
+      pointer.classList.remove("is-hidden");
+    }
+
+    function show(index) {
+      current = Math.max(0, Math.min(pages.length - 1, index));
+      var title = titleOf(current);
+      pages.forEach(function (page, i) { page.classList.toggle("is-active", i === current); });
+      stepItems.forEach(function (li, i) {
+        li.classList.toggle("is-current", i === current);
+        li.classList.toggle("is-done", i < current);
+      });
+      document.getElementById("back").style.visibility = current === 0 ? "hidden" : "visible";
+      nextButton.textContent = current === 0 ? "Get started" : "Next";
+      nextButton.hidden = current === pages.length - 1 || (title === "Install" && !installStarted);
+      nextButton.classList.toggle("primary", title !== "Install" || installStarted);
+      installer.hidden = title !== "Install" || !canInstall;
+      unsupported.hidden = title !== "Install" || canInstall;
+      aim();
+    }
+
+    document.getElementById("back").addEventListener("click", function () { show(current - 1); });
+    nextButton.addEventListener("click", function () { show(current + 1); });
+    /* The same steps as the ESP Web Tools install button, minus its "No port selected" dialog when the popup is cancelled. */
+    installer.addEventListener("click", async function () {
+      var port;
+      installStarted = true;
+      chooserUntil = Date.now() + 90000;
+      show(current);
+      try {
+        port = await navigator.serial.requestPort();
+      } catch (error) {
+        installStarted = false;
+        chooserUntil = 0;
+        show(current);
+        if (error.name !== "NotFoundError") alert(error.message);
+        return;
+      }
+      try {
+        await import("./vendor/esp-web-tools/install-dialog-ChRWE6GU.js");
+        await port.open({ baudRate: 115200, bufferSize: 8192 });
+      } catch (error) {
+        installStarted = false;
+        chooserUntil = 0;
+        show(current);
+        alert(error.message);
+        return;
+      }
+      var dialog = document.createElement("ewt-install-dialog");
+      dialog.port = port;
+      dialog.manifestPath = "manifest.json";
+      /* Offer the install even when this firmware is already on the ESP32, and stop offering it once it has been installed. */
+      dialog.overrides = { checkSameFirmware: function () { return installedFlag; } };
+      dialog.addEventListener("closed", function () { port.close(); }, { once: true });
+      document.body.appendChild(dialog);
+    });
+    document.querySelectorAll(".toggle button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        document.querySelectorAll(".toggle button").forEach(function (other) { other.classList.toggle("is-on", other === button); });
+        if (window.setCaseView) window.setCaseView(button.getAttribute("data-view") === "open");
+      });
+    });
+    window.addEventListener("resize", aim);
+
+    /* Guided install: follows the ESP Web Tools dialog and points at what to click next. */
+    function norm(el) { return (el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase(); }
+    function pick(root, selector, word) {
+      var list = root.querySelectorAll(selector);
+      for (var i = 0; i < list.length; i++) if (norm(list[i]).indexOf(word) > -1) return list[i];
+      return null;
+    }
+    function hideGuide() { guide.classList.remove("is-on"); }
+    function showGuide(text, x, centerY, flip, sub) {
+      guideText.textContent = text;
+      guideSub.textContent = sub || "";
+      guide.classList.add("is-on");
+      guide.classList.toggle("flip", !!flip);
+      guide.style.left = flip ? "auto" : x + "px";
+      guide.style.right = flip ? (window.innerWidth - x) + "px" : "auto";
+      guide.style.top = (centerY - guide.offsetHeight / 2) + "px";
+    }
+    function guideNear(text, content, el, sub) {
+      var anchor = (el || content);
+      if (!anchor) { hideGuide(); return; }
+      var box = anchor.getBoundingClientRect();
+      var area = content ? content.getBoundingClientRect() : box;
+      var right = Math.max(area.right, box.right) + 34;
+      var centerY = el ? box.top + box.height / 2 : area.top + area.height / 2;
+      if (right + 330 > window.innerWidth) showGuide(text, Math.min(area.left, box.left) - 34, centerY, true, sub);
+      else showGuide(text, right, centerY, false, sub);
+    }
+    function tickGuide() {
+      var d = document.querySelector("ewt-install-dialog");
+      if (document.querySelector("ewt-no-port-picked-dialog")) chooserUntil = 0;
+      if (!d || !d.shadowRoot) {
+        if (sawDialog) {
+          sawDialog = false;
+          var finished = installedFlag && provisionedFlag;
+          installedFlag = false;
+          provisionedFlag = false;
+          if (finished) show(indexOfTitle("Printer"));
+          else show(current);
+        }
+        if (Date.now() < chooserUntil) showGuide("Choose your ESP32, then click Connect", Math.min(Math.max(660, window.innerWidth * 0.36), window.innerWidth - 300), 150, false, "Several ports? Pick the one with CH343 or wchusbserial.");
+        else hideGuide();
+        return;
+      }
+      if (!sawDialog) { sawDialog = true; chooserUntil = 0; aim(); }
+      var sr = d.shadowRoot;
+      var state = d._state;
+      var client = d._client;
+      var installState = d._installState && d._installState.state;
+      if (installState === "finished" && !installedFlag) { installedFlag = true; d.requestUpdate(); }
+      if (installedFlag && client && client.state === 4) provisionedFlag = true;
+      var content = sr.querySelector('[slot="content"]');
+      var text = "", el = null, sub = "";
+      if (client === undefined && state !== "INSTALL" && state !== "LOGS") {
+        text = "Connecting to the ESP32";
+      } else if (state === "DASHBOARD") {
+        if (installedFlag && provisionedFlag) { text = "Done. Close the installer"; el = sr.querySelector("ew-icon-button") || pick(sr, "ew-text-button", "close"); }
+        else if (installedFlag) { text = "Choose the WiFi option"; el = pick(sr, "ew-list-item", "wi-fi"); }
+        else { text = "Choose Install Pluto Print"; el = pick(sr, "ew-list-item", "install") || pick(sr, "ew-list-item", "update"); }
+      } else if (state === "ASK_ERASE") {
+        text = "Click Next"; el = pick(sr, "ew-text-button", "next");
+      } else if (state === "INSTALL") {
+        if (!d._installConfirmed) { text = "Click Install"; el = pick(sr, "ew-text-button", "install"); }
+        else if (installState === "finished" && client !== undefined) { text = "Click Next"; el = pick(sr, "ew-text-button", "next"); }
+        else { text = "Installing. This takes about 2 minutes"; }
+      } else if (state === "PROVISION") {
+        if (d._busy) text = "Connecting to your WiFi";
+        else if (d._ssids === undefined) text = "Looking for networks";
+        else {
+          var select = sr.querySelector("ew-filled-select");
+          var fields = sr.querySelectorAll("ew-filled-text-field");
+          var password = null;
+          for (var i = 0; i < fields.length; i++) if ((fields[i].getAttribute("type") || "") === "password" || norm(fields[i]).indexOf("password") > -1) password = fields[i];
+          if (!d._selectedSsid && select) { text = "Choose your WiFi network"; sub = "2.4 GHz networks only."; el = select; }
+          else if (password && !password.value) { text = "Enter its password"; el = password; }
+          else { text = "Click Connect"; el = pick(sr, "ew-text-button", "connect"); }
+        }
+      }
+      if (!text || !el) { hideGuide(); return; }
+      guideNear(text, content, el, sub);
+    }
+    setInterval(function () { try { tickGuide(); } catch (e) { hideGuide(); } }, 300);
+
+    show(0);
+
+  </script>
+</body>
+</html>

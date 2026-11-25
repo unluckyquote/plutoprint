@@ -1,0 +1,120 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 UnluckyQuote -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <h1 id="device-name">Printer</h1>
+      <div class="status-indicator" id="status-indicator" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">Ready</span>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Printer sections">
+      <button class="tab is-active" data-tab="status">Status</button>
+      <button class="tab" data-tab="jobs">Jobs</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="update">Update</button>
+    </nav>
+
+    <section class="panel is-active" data-panel="status">
+      <div class="toner" aria-label="Toner level">
+        <svg viewBox="0 0 132 132" role="img" aria-labelledby="toner-label">
+          <title id="toner-label">Toner level</title>
+          <circle class="toner-track" cx="66" cy="66" r="56"></circle>
+          <circle class="toner-value" id="toner-ring" cx="66" cy="66" r="56"></circle>
+        </svg>
+        <div class="toner-label"><strong id="toner-percent">-</strong><span>toner</span></div>
+      </div>
+      <p class="muted last-job" id="last-job"></p>
+      <dl class="info-list">
+        <div><dt>Printer</dt><dd id="printer-model">-</dd></div>
+        <div><dt>WiFi</dt><dd id="wifi-ssid">-</dd></div>
+        <div><dt>IP address</dt><dd id="ip-address">-</dd></div>
+        <div><dt>Uptime</dt><dd id="uptime">-</dd></div>
+      </dl>
+      <button class="button primary full" id="test-page">Print test page</button>
+    </section>
+
+    <section class="panel" data-panel="jobs">
+      <div class="section-heading"><h2>Jobs</h2><span class="muted" id="job-count"></span></div>
+      <div class="job-list" id="job-list"></div>
+      <button class="button danger full hidden" id="cancel-job">Cancel current job</button>
+      <button class="button secondary full" id="clear-jobs">Clear jobs</button>
+    </section>
+
+    <section class="panel" data-panel="settings">
+      <h2>Device settings</h2>
+      <form id="device-form">
+        <label>Device name<input name="name" maxlength="31" required></label>
+        <label>Location<input name="location" maxlength="31"></label>
+        <label>Hostname<input name="hostname" maxlength="31" required></label>
+        <label>Colour printing
+          <select name="color_mode">
+            <option value="0">Follow the printer</option>
+            <option value="1">Black and white only</option>
+            <option value="2">Colour</option>
+          </select>
+        </label>
+        <label>Two-sided printing
+          <select name="duplex">
+            <option value="0">Off</option>
+            <option value="1">On</option>
+          </select>
+        </label>
+        <label>Clear jobs log
+          <select name="jobs_clear_hours">
+            <option value="0">Never</option>
+            <option value="6">Every 6 hours</option>
+            <option value="12">Every 12 hours</option>
+            <option value="24">Every 24 hours</option>
+            <option value="48">Every 48 hours</option>
+            <option value="72">Every 72 hours</option>
+          </select>
+        </label>
+        <button class="button primary" type="submit">Save</button>
+      </form>
+      <div class="divider"></div>
+      <h2>WiFi</h2>
+      <form id="wifi-form">
+        <label>SSID<input name="ssid" maxlength="32" list="networks" required></label>
+        <datalist id="networks"></datalist>
+        <label>Password<input name="password" type="password" maxlength="64"></label>
+        <button class="button primary" type="submit">Save and reboot</button>
+      </form>
+      <div class="divider"></div>
+      <h2>Password</h2>
+      <p class="muted">Asked for when changing settings, updating firmware or cancelling jobs. Hold the BOOT button for 10 seconds to remove it. The user name is admin.</p>
+      <form id="password-form">
+        <label>New password<input name="password" type="password" minlength="6" maxlength="64" autocomplete="new-password" required></label>
+        <button class="button primary" type="submit" id="password-save">Set password</button>
+      </form>
+      <button class="button secondary full hidden" id="remove-password">Remove password</button>
+      <div class="divider"></div>
+      <button class="button secondary full" id="reboot">Reboot</button>
+      <p class="form-message" id="settings-message" role="status"></p>
+    </section>
+
+    <section class="panel" data-panel="update">
+      <h2>Firmware update</h2>
+      <p class="muted">Select a firmware binary to upload to the printer.</p>
+      <form id="ota-form">
+        <label>Firmware file<input id="firmware-file" type="file" accept=".bin,application/octet-stream" required></label>
+        <button class="button primary" type="submit">Upload</button>
+      </form>
+      <progress id="ota-progress" max="100" value="0" hidden></progress>
+      <p class="form-message" id="ota-message" role="status"></p>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
